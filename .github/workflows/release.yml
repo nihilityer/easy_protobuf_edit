@@ -50,6 +50,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set Target
+        run: rustup target add ${{ matrix.target }}
+
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
 
@@ -67,7 +70,7 @@ jobs:
           path: release/
 
   release:
-    needs: [build]
+    needs: [ build ]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
