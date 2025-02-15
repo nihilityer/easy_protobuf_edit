@@ -35,6 +35,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: echo info
+        run: echo ${{ inputs.version || github.ref_name }}
+
       - name: Set Target
         run: rustup target add ${{ matrix.target }}
 
@@ -44,12 +47,12 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir release
-          cp "./target/${{ matrix.target }}/release/easy_protobuf_edit${{ matrix.ext }}" "release/easy_protobuf_edit-${{ inputs.version || github.ref }}-${{ matrix.target }}${{ matrix.ext }}"
+          cp "./target/${{ matrix.target }}/release/easy_protobuf_edit${{ matrix.ext }}" "release/easy_protobuf_edit-${{ inputs.version || github.ref_name }}-${{ matrix.target }}${{ matrix.ext }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: epe-${{ inputs.version || github.ref }}-${{ matrix.target }}
+          name: epe-${{ inputs.version || github.ref_name }}-${{ matrix.target }}
           path: release/
 
   release:
@@ -59,12 +62,12 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: epe-${{ inputs.version || github.ref }}-*
+          pattern: epe-${{ inputs.version || github.ref_name }}-*
           merge-multiple: true
           path: binaries
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.version || github.ref }}
+          tag_name: ${{ inputs.version || github.ref_name }}
           files: binaries/*
