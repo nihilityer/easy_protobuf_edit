@@ -1,12 +1,12 @@
 use bytes::Bytes;
-use iced::widget::{button, center, radio, text, text_editor, Column, Row};
+use iced::widget::{button, center, radio, text, text_editor, text_input, Column, Row};
 use iced::{event, window, Center, Element, Event, Subscription, Task};
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, SerializeOptions};
 use prost_types::FileDescriptorSet;
 use serde_json::{Deserializer, Serializer};
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufWriter, Read, Write};
 use std::path::PathBuf;
 
 pub fn run_app() -> iced::Result {
@@ -21,6 +21,7 @@ struct App {
     message_full_name_list: Vec<String>,
     message_full_name: Option<usize>,
     protobuf_data: Vec<u8>,
+    protobuf_data_file: String,
     content: text_editor::Content,
     json: String,
     state: AppState,
@@ -39,8 +40,10 @@ enum AppMessage {
     EventOccurred(Event),
     Edit(text_editor::Action),
     RadioSelected(usize),
+    SavePathEdit(String),
     Decode,
     Encode,
+    Save,
 }
 
 impl App {
@@ -56,6 +59,7 @@ impl App {
                                 .collect();
                             self.descriptor_pool = Some(pool);
                             self.state = AppState::Editor;
+                            self.message = Some("Drop Protobuf Data File Here".to_string());
                             Task::none()
                         }
                         Err(e) => {
@@ -158,6 +162,25 @@ impl App {
                 self.message_full_name = Some(name);
                 Task::none()
             }
+            AppMessage::Save => match File::create(&self.protobuf_data_file) {
+                Ok(file) => {
+                    let mut writer = BufWriter::new(file);
+                    if let Err(e) = writer.write_all(&self.protobuf_data) {
+                        self.message = Some(format!("write to protobuf file fail: {}", e));
+                        return Task::none();
+                    }
+                    self.message = Some(String::from("Protobuf File Saved"));
+                    Task::none()
+                }
+                Err(e) => {
+                    self.message = Some(format!("create out protobuf data file fail: {}", e));
+                    Task::none()
+                }
+            },
+            AppMessage::SavePathEdit(save_path) => {
+                self.protobuf_data_file = save_path;
+                Task::none()
+            }
         }
     }
 
@@ -188,11 +211,18 @@ impl App {
                         AppMessage::RadioSelected,
                     ));
                 }
+                let mut right = Column::new().align_x(Center).spacing(20);
                 let mut buttons = Row::new().align_y(Center).spacing(20);
                 buttons = buttons.push(button("Decode").on_press(AppMessage::Decode));
                 buttons = buttons.push(button("Encode").on_press(AppMessage::Encode));
+                buttons = buttons.push(button("Save").on_press(AppMessage::Save));
+                right = right.push(buttons);
+                right = right.push(
+                    text_input("Save Protobuf Data File Path", &self.protobuf_data_file)
+                        .on_input(AppMessage::SavePathEdit),
+                );
                 top = top.push(message_type);
-                top = top.push(buttons);
+                top = top.push(right);
                 let mut content = Column::new().align_x(Center).spacing(20);
                 content = content.push(top);
                 if let Some(error_message) = self.message.clone() {

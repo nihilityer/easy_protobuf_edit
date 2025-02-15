@@ -49,7 +49,7 @@ fn main() {
                 .long("gui")
                 .short('g')
                 .help("Open GUI To Edit")
-                .action(ArgAction::SetTrue),
+                .action(ArgAction::SetFalse),
         )
         .get_matches();
 
