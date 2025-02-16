@@ -4,10 +4,10 @@ use iced::{event, window, Center, Element, Event, Subscription, Task};
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, SerializeOptions};
 use prost_types::FileDescriptorSet;
-use rfd::FileDialog;
+use rfd::AsyncFileDialog;
 use serde_json::{Deserializer, Serializer};
 use std::fs::File;
-use std::io::{BufWriter, Read, Write};
+use std::io::Read;
 use std::path::PathBuf;
 
 pub fn run_app() -> iced::Result {
@@ -164,32 +164,28 @@ impl App {
                 Task::none()
             }
             AppMessage::SaveFile => {
-                let files = FileDialog::new().save_file();
-                match files {
-                    Some(path) => match File::create(path) {
-                        Ok(file) => {
-                            let mut writer = BufWriter::new(file);
-                            if let Err(e) = writer.write_all(&self.protobuf_data) {
-                                self.message = Some(format!("write to protobuf file fail: {}", e));
-                            } else {
-                                self.message = Some(String::from("Save file successful"));
-                            }
+                let data = self.protobuf_data.clone();
+                let task = AsyncFileDialog::new()
+                    .set_title("Save Protobuf Data File")
+                    .save_file();
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                self.message = rt.block_on(async move {
+                    let file = task.await;
+                    if let Some(file_handle) = file {
+                        match file_handle.write(data.as_slice()).await {
+                            Ok(_) => Some(String::from("Save file successful")),
+                            Err(e) => Some(format!("write to protobuf file fail: {}", e)),
                         }
-                        Err(e) => {
-                            self.message = Some(format!("create file fail: {}", e));
-                        }
-                    },
-                    None => {
-                        self.message = Some(String::from("File Path not set"));
+                    } else {
+                        Some(String::from("Save file does not exist"))
                     }
-                }
+                });
                 Task::none()
             }
             AppMessage::OpenFile => {
-                let files = FileDialog::new().pick_file();
-                if let Some(path) = files {
-                    match self.state {
-                        AppState::UploadFileDescriptorSet => match read_file_descriptor_set(path) {
+                match self.state {
+                    AppState::UploadFileDescriptorSet => {
+                        match read_file_descriptor_set_with_dialog() {
                             Ok(pool) => {
                                 self.message_full_name_list = pool
                                     .all_messages()
@@ -202,18 +198,12 @@ impl App {
                             Err(e) => {
                                 self.message = Some(e.to_string());
                             }
-                        },
-                        AppState::Editor => match read_protobuf_data(&path) {
-                            Ok(data) => {
-                                self.protobuf_data = data;
-                                self.message =
-                                    Some(format!("Protobuf Data Load Success: {}", path.display()));
-                                return Task::done(AppMessage::Decode);
-                            }
-                            Err(e) => {
-                                self.message = Some(e.to_string());
-                            }
-                        },
+                        }
+                    }
+                    AppState::Editor => {
+                        self.protobuf_data = read_protobuf_data_with_dialog();
+                        self.message = Some("Protobuf Data Load Success".to_string());
+                        return Task::done(AppMessage::Decode);
                     }
                 }
                 Task::none()
@@ -289,6 +279,30 @@ fn read_file_descriptor_set(path: PathBuf) -> Result<DescriptorPool, String> {
     }
 }
 
+fn read_file_descriptor_set_with_dialog() -> Result<DescriptorPool, String> {
+    let task = AsyncFileDialog::new()
+        .set_title("Open File Descriptor Set File")
+        .pick_file();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let data = rt.block_on(async move {
+        let file = task.await;
+        if let Some(file_handle) = file {
+            file_handle.read().await
+        } else {
+            Vec::new()
+        }
+    });
+    match FileDescriptorSet::decode(Bytes::from(data)) {
+        Ok(file_descriptor_set) => {
+            match DescriptorPool::from_file_descriptor_set(file_descriptor_set) {
+                Ok(pool) => Ok(pool),
+                Err(e) => Err(format!("Create DescriptorPool Fail: {}", e)),
+            }
+        }
+        Err(e) => Err(format!("FileDescriptorSet decode Fail: {}", e)),
+    }
+}
+
 fn read_protobuf_data(path: &PathBuf) -> Result<Vec<u8>, String> {
     match File::open(path) {
         Ok(mut fds_file) => {
@@ -300,4 +314,19 @@ fn read_protobuf_data(path: &PathBuf) -> Result<Vec<u8>, String> {
         }
         Err(e) => Err(format!("Failed to open protobuf data file: {}", e)),
     }
+}
+
+fn read_protobuf_data_with_dialog() -> Vec<u8> {
+    let task = AsyncFileDialog::new()
+        .set_title("Open Protobuf Data File")
+        .pick_file();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async move {
+        let file = task.await;
+        if let Some(file_handle) = file {
+            file_handle.read().await
+        } else {
+            Vec::new()
+        }
+    })
 }
