@@ -41,6 +41,7 @@ enum AppMessage {
     EventOccurred(Event),
     Edit(text_editor::Action),
     RadioSelected(usize),
+    Reset,
     Decode,
     Encode,
     SaveFile,
@@ -208,6 +209,14 @@ impl App {
                 }
                 Task::none()
             }
+            AppMessage::Reset => {
+                self.descriptor_pool = None;
+                self.message_full_name_list = Vec::new();
+                self.state = AppState::UploadFileDescriptorSet;
+                self.message = None;
+                self.message_full_name = None;
+                Task::none()
+            }
         }
     }
 
@@ -240,6 +249,7 @@ impl App {
                     ));
                 }
                 let mut buttons = Row::new().align_y(Center).spacing(20);
+                buttons = buttons.push(button("Reset").on_press(AppMessage::Reset));
                 buttons = buttons.push(button("Decode").on_press(AppMessage::Decode));
                 buttons = buttons.push(button("Encode").on_press(AppMessage::Encode));
                 buttons = buttons.push(button("Open").on_press(AppMessage::OpenFile));
