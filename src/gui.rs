@@ -10,6 +10,7 @@ use std::io::{BufWriter, Read, Write};
 use std::path::PathBuf;
 
 pub fn run_app() -> iced::Result {
+    tracing_subscriber::fmt::init();
     iced::application("Easy Protobuf Edit", App::update, App::view)
         .subscription(App::subscription)
         .run()

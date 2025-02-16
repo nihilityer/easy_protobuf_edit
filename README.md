@@ -9,7 +9,7 @@ simple Protobuf data reading and modification
 ### 获取file_descriptor_set / Get file_descriptor_set
 
 ```shell
-$ protoc --proto_path="." -o file_descriptor_set.bin example.proto -g
+$ protoc --proto_path="." -o file_descriptor_set.bin example.proto
 ```
 
 ### 1.1、直接使用GUI界面交互式编辑 / Directly use the GUI interface for interactive editing
