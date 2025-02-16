@@ -1,9 +1,10 @@
 use bytes::Bytes;
-use iced::widget::{button, center, radio, text, text_editor, text_input, Column, Row};
+use iced::widget::{button, center, radio, text, text_editor, Column, Row};
 use iced::{event, window, Center, Element, Event, Subscription, Task};
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, SerializeOptions};
 use prost_types::FileDescriptorSet;
+use rfd::FileDialog;
 use serde_json::{Deserializer, Serializer};
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
@@ -22,7 +23,6 @@ struct App {
     message_full_name_list: Vec<String>,
     message_full_name: Option<usize>,
     protobuf_data: Vec<u8>,
-    protobuf_data_file: String,
     content: text_editor::Content,
     json: String,
     state: AppState,
@@ -41,10 +41,10 @@ enum AppMessage {
     EventOccurred(Event),
     Edit(text_editor::Action),
     RadioSelected(usize),
-    SavePathEdit(String),
     Decode,
     Encode,
-    Save,
+    SaveFile,
+    OpenFile,
 }
 
 impl App {
@@ -163,23 +163,59 @@ impl App {
                 self.message_full_name = Some(name);
                 Task::none()
             }
-            AppMessage::Save => match File::create(&self.protobuf_data_file) {
-                Ok(file) => {
-                    let mut writer = BufWriter::new(file);
-                    if let Err(e) = writer.write_all(&self.protobuf_data) {
-                        self.message = Some(format!("write to protobuf file fail: {}", e));
-                        return Task::none();
+            AppMessage::SaveFile => {
+                let files = FileDialog::new().save_file();
+                match files {
+                    Some(path) => match File::create(path) {
+                        Ok(file) => {
+                            let mut writer = BufWriter::new(file);
+                            if let Err(e) = writer.write_all(&self.protobuf_data) {
+                                self.message = Some(format!("write to protobuf file fail: {}", e));
+                            } else {
+                                self.message = Some(String::from("Save file successful"));
+                            }
+                        }
+                        Err(e) => {
+                            self.message = Some(format!("create file fail: {}", e));
+                        }
+                    },
+                    None => {
+                        self.message = Some(String::from("File Path not set"));
                     }
-                    self.message = Some(String::from("Protobuf File Saved"));
-                    Task::none()
                 }
-                Err(e) => {
-                    self.message = Some(format!("create out protobuf data file fail: {}", e));
-                    Task::none()
+                Task::none()
+            }
+            AppMessage::OpenFile => {
+                let files = FileDialog::new().pick_file();
+                if let Some(path) = files {
+                    match self.state {
+                        AppState::UploadFileDescriptorSet => match read_file_descriptor_set(path) {
+                            Ok(pool) => {
+                                self.message_full_name_list = pool
+                                    .all_messages()
+                                    .map(|m| m.full_name().to_string())
+                                    .collect();
+                                self.descriptor_pool = Some(pool);
+                                self.state = AppState::Editor;
+                                self.message = Some("Drop Protobuf Data File Here".to_string());
+                            }
+                            Err(e) => {
+                                self.message = Some(e.to_string());
+                            }
+                        },
+                        AppState::Editor => match read_protobuf_data(&path) {
+                            Ok(data) => {
+                                self.protobuf_data = data;
+                                self.message =
+                                    Some(format!("Protobuf Data Load Success: {}", path.display()));
+                                return Task::done(AppMessage::Decode);
+                            }
+                            Err(e) => {
+                                self.message = Some(e.to_string());
+                            }
+                        },
+                    }
                 }
-            },
-            AppMessage::SavePathEdit(save_path) => {
-                self.protobuf_data_file = save_path;
                 Task::none()
             }
         }
@@ -195,7 +231,8 @@ impl App {
                 let mut content = Column::new()
                     .align_x(Center)
                     .spacing(20)
-                    .push(text("Drop FileDescriptorSet File Here"));
+                    .push(text("Drop FileDescriptorSet File Here"))
+                    .push(button("Open").on_press(AppMessage::OpenFile));
                 if let Some(error_message) = self.message.clone() {
                     content = content.push(text(error_message));
                 }
@@ -212,18 +249,13 @@ impl App {
                         AppMessage::RadioSelected,
                     ));
                 }
-                let mut right = Column::new().align_x(Center).spacing(20);
                 let mut buttons = Row::new().align_y(Center).spacing(20);
                 buttons = buttons.push(button("Decode").on_press(AppMessage::Decode));
                 buttons = buttons.push(button("Encode").on_press(AppMessage::Encode));
-                buttons = buttons.push(button("Save").on_press(AppMessage::Save));
-                right = right.push(buttons);
-                right = right.push(
-                    text_input("Save Protobuf Data File Path", &self.protobuf_data_file)
-                        .on_input(AppMessage::SavePathEdit),
-                );
+                buttons = buttons.push(button("Open").on_press(AppMessage::OpenFile));
+                buttons = buttons.push(button("Save").on_press(AppMessage::SaveFile));
                 top = top.push(message_type);
-                top = top.push(right);
+                top = top.push(buttons);
                 let mut content = Column::new().align_x(Center).spacing(20);
                 content = content.push(top);
                 if let Some(error_message) = self.message.clone() {
