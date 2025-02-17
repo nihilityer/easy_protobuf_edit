@@ -33,6 +33,15 @@ jobs:
         run: ./trunk build --release --public-url $public_url
         env:
           public_url: "https://nihilityer.top/${{ github.event.repository.name }}"
+      - name: Update sw.js with hashed filename
+        run: |
+          generated_file=$(ls dist/easy_protobuf_edit-*.js)
+          if [ -z "$generated_file" ]; then exit 1; fi
+          filename=$(basename "$generated_file")
+          hash_part="${filename#easy_protobuf_edit-}"
+          hash_part="${hash_part%.js}"
+          sed -i "5s|.*|'./dist/easy_protobuf_edit-${hash_part}.js',|" ./dist/sw.js
+          sed -i "6s|.*|'./dist/easy_protobuf_edit-${hash_part}_bg.wasm',|" ./dist/sw.js
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
