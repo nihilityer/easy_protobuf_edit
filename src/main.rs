@@ -1,82 +1,71 @@
-use clap::{Arg, ArgAction, Command};
-use easy_protobuf_edit::{handle_command, run_app};
+#![warn(clippy::all, rust_2018_idioms)]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+#[cfg(not(target_arch = "wasm32"))]
+#[tokio::main]
+async fn main() -> eframe::Result {
+    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+
+    let native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1000.0, 1000.0])
+            .with_min_inner_size([300.0, 220.0])
+            .with_icon(
+                // NOTE: Adding an icon is optional
+                eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
+                    .expect("Failed to load icon"),
+            ),
+        ..Default::default()
+    };
+    eframe::run_native(
+        "Easy Protobuf Edit",
+        native_options,
+        Box::new(|cc| Ok(Box::new(easy_protobuf_edit::EasyProtobufEditApp::new(cc)))),
+    )
+}
+
+// When compiling to web using trunk:
+#[cfg(target_arch = "wasm32")]
 fn main() {
-    let matches = Command::new("EasyProtobufEdit")
-        .version("1.0")
-        .about("Make reading and editing Protobuf data simpler")
-        .arg(
-            Arg::new("file_descriptor_set")
-                .long("file_descriptor_set")
-                .short('f')
-                .value_name("SET")
-                .help("Input file descriptor set")
-                .required(false),
-        )
-        .arg(
-            Arg::new("message_full_name")
-                .long("message_full_name")
-                .short('m')
-                .value_name("MESSAGE_FULL_NAME")
-                .help("Decode Message Type Full Name")
-                .required(false),
-        )
-        .arg(
-            Arg::new("data_file")
-                .long("data_file")
-                .short('d')
-                .value_name("DATA_FILE")
-                .help("Protobuf Data File")
-                .required(false),
-        )
-        .arg(
-            Arg::new("json_file")
-                .short('j')
-                .long("json_file")
-                .value_name("JSON_FILE")
-                .default_value("data.json")
-                .help("Json file path"),
-        )
-        .arg(
-            Arg::new("encode")
-                .long("encode")
-                .short('e')
-                .help("Enable encoding")
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("gui")
-                .long("gui")
-                .short('g')
-                .help("Open GUI To Edit")
-                .action(ArgAction::SetFalse),
-        )
-        .get_matches();
+    use eframe::wasm_bindgen::JsCast as _;
 
-    if matches.get_flag("gui") {
-        if let Err(e) = run_app() {
-            eprintln!("GUI Run Fail: {}", e);
+    eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+
+    let web_options = eframe::WebOptions::default();
+
+    wasm_bindgen_futures::spawn_local(async {
+        let document = web_sys::window()
+            .expect("No window")
+            .document()
+            .expect("No document");
+
+        let canvas = document
+            .get_element_by_id("the_canvas_id")
+            .expect("Failed to find the_canvas_id")
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .expect("the_canvas_id was not a HtmlCanvasElement");
+
+        let start_result = eframe::WebRunner::new()
+            .start(
+                canvas,
+                web_options,
+                Box::new(|cc| Ok(Box::new(easy_protobuf_edit::EasyProtobufEditApp::new(cc)))),
+            )
+            .await;
+
+        // Remove the loading text and spinner:
+        if let Some(loading_text) = document.get_element_by_id("loading_text") {
+            match start_result {
+                Ok(_) => {
+                    loading_text.remove();
+                }
+                Err(e) => {
+                    loading_text.set_inner_html(
+                        "<p> The app has crashed. See the developer console for details. </p>",
+                    );
+                    panic!("Failed to start eframe: {e:?}");
+                }
+            }
         }
-    } else {
-        if matches.get_one::<String>("file_descriptor_set").is_none() {
-            eprintln!("Please specify a file descriptor set.");
-            return;
-        }
-        if matches.get_one::<String>("data_file").is_none() {
-            eprintln!("Please specify a data file.");
-            return;
-        }
-        let file_descriptor_set = matches.get_one::<String>("file_descriptor_set").unwrap();
-        let json_file = matches.get_one::<String>("json_file").unwrap();
-        let data_file = matches.get_one::<String>("data_file").unwrap();
-        let message_full_name = matches.get_one::<String>("message_full_name");
-        let encode_flag = matches.get_flag("encode");
-        handle_command(
-            json_file,
-            data_file,
-            message_full_name,
-            encode_flag,
-            file_descriptor_set,
-        );
-    }
+    });
 }
