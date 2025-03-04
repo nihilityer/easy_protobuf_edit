@@ -32,7 +32,7 @@ jobs:
       - name: Build
         run: ./trunk build --release --public-url $public_url
         env:
-          public_url: "https://nihilityer.top/${{ github.event.repository.name }}"
+          public_url: "https://www.nihilityer.top/${{ github.event.repository.name }}"
       - name: Update sw.js with hashed filename
         run: |
           generated_file=$(ls dist/easy_protobuf_edit-*.js)
