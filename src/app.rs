@@ -4,11 +4,13 @@ use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, SerializeOptions};
 use prost_types::FileDescriptorSet;
 use rfd::AsyncFileDialog;
+use rust_i18n::{set_locale, t};
 use serde_json::{Deserializer, Serializer};
 use std::future::Future;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 pub struct EasyProtobufEditApp {
+    locale: Locale,
     descriptor_pool: Option<DescriptorPool>,
     message_full_name_list: Vec<String>,
     message_full_name: usize,
@@ -22,6 +24,12 @@ pub struct EasyProtobufEditApp {
     message: Option<String>,
 }
 
+#[derive(Eq, PartialEq)]
+enum Locale {
+    Zh,
+    En,
+}
+
 #[derive(Debug, Default)]
 enum AppState {
     #[default]
@@ -33,7 +41,9 @@ impl Default for EasyProtobufEditApp {
     fn default() -> Self {
         let (read_file_sender, read_file_receiver) = channel();
         let (save_file_sender, save_file_receiver) = channel();
+        println!("{}", rust_i18n::locale().to_string());
         Self {
+            locale: Locale::Zh,
             read_file_sender,
             read_file_receiver,
             save_file_sender,
@@ -90,14 +100,14 @@ impl EasyProtobufEditApp {
                     if let Err(e) =
                         dynamic_message.serialize_with_options(&mut serializer, &options)
                     {
-                        self.message = Some(format!("serialize to json fail: {}", e));
+                        self.message = Some(format!("{}{}", t!("serialize2json_fail"), e));
                     } else {
                         self.json = String::from_utf8(serializer.into_inner()).unwrap();
-                        self.message = Some("Decode Successfully".to_string());
+                        self.message = Some(t!("decode_success").to_string());
                     }
                 }
                 Err(e) => {
-                    self.message = Some(format!("decode to DynamicMessage Fail: {}", e));
+                    self.message = Some(format!("{}{}", t!("decode2dynamic_message_fail"), e));
                 }
             }
         }
@@ -115,14 +125,14 @@ impl EasyProtobufEditApp {
                 Ok(dynamic_message) => {
                     let mut buf = Vec::new();
                     if let Err(e) = dynamic_message.encode(&mut buf) {
-                        self.message = Some(format!("encode to protobuf fail: {}", e));
+                        self.message = Some(format!("{}{}", t!("encode2protobuf_fail"), e));
                     } else {
                         self.protobuf_data = buf;
-                        self.message = Some("Protobuf Data Store".to_string());
+                        self.message = Some(t!("protobuf_data_store").to_string());
                     }
                 }
                 Err(e) => {
-                    self.message = Some(format!("deserialize DynamicMessage Fail: {}", e));
+                    self.message = Some(format!("{}{}", t!("deserialize_dynamic_message_fail"), e));
                 }
             }
         }
@@ -131,18 +141,35 @@ impl EasyProtobufEditApp {
 
 impl eframe::App for EasyProtobufEditApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        match self.locale {
+            Locale::Zh => {
+                set_locale("zh-CN");
+            }
+            Locale::En => {
+                set_locale("en");
+            }
+        }
         let window_height = ctx.screen_rect().height();
         egui::CentralPanel::default().show(ctx, |ui| {
             match self.state {
                 AppState::UploadFileDescriptorSet => ui.vertical_centered_justified(|ui| {
                     ui.add_space(window_height / 5.0 * 2.0);
-                    ui.label("选择file_descriptor_set文件上传");
+                    egui::ComboBox::from_id_salt("locales selected")
+                        .selected_text(match self.locale {
+                            Locale::Zh => "中文".to_string(),
+                            Locale::En => "English".to_string(),
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.locale, Locale::Zh, "中文");
+                            ui.selectable_value(&mut self.locale, Locale::En, "English");
+                        });
+                    ui.label(t!("tips_upload_file_descriptor_set"));
                     if let Some(message) = self.message.clone() {
                         ui.label(message);
                     }
-                    if ui.button("上传").clicked() {
+                    if ui.button(t!("upload")).clicked() {
                         let task = AsyncFileDialog::new()
-                            .set_title("Open File Descriptor Set File")
+                            .set_title(t!("upload_file_descriptor_set_dialog_title"))
                             .pick_file();
                         let sender = self.read_file_sender.clone();
                         let future = async move {
@@ -158,7 +185,7 @@ impl eframe::App for EasyProtobufEditApp {
                     ui.vertical_centered(|ui| {
                         ui.horizontal(|ui| {
                             if !self.message_full_name_list.is_empty() {
-                                egui::ComboBox::from_label("Full Message Name")
+                                egui::ComboBox::from_label(t!("full_message_name"))
                                     .selected_text(
                                         self.message_full_name_list[self.message_full_name]
                                             .to_string(),
@@ -175,7 +202,7 @@ impl eframe::App for EasyProtobufEditApp {
                                         }
                                     });
                             }
-                            if ui.button("上一步").clicked() {
+                            if ui.button(t!("previous")).clicked() {
                                 self.descriptor_pool = None;
                                 self.state = AppState::UploadFileDescriptorSet;
                                 self.message_full_name_list = Vec::new();
@@ -187,9 +214,9 @@ impl eframe::App for EasyProtobufEditApp {
                         });
 
                         ui.horizontal(|ui| {
-                            if ui.button("上传").clicked() {
+                            if ui.button(t!("upload")).clicked() {
                                 let task = AsyncFileDialog::new()
-                                    .set_title("Open Protobuf Data File")
+                                    .set_title(t!("upload_protobuf_data_dialog_title"))
                                     .pick_file();
                                 let sender = self.read_file_sender.clone();
                                 let future = async move {
@@ -200,10 +227,10 @@ impl eframe::App for EasyProtobufEditApp {
                                 };
                                 execute(Box::pin(future));
                             }
-                            if ui.button("保存").clicked() {
+                            if ui.button(t!("save")).clicked() {
                                 self.encode();
                                 let task = AsyncFileDialog::new()
-                                    .set_title("Save Protobuf Data File")
+                                    .set_title(t!("save_protobuf_data_dialog_title"))
                                     .save_file();
                                 let data = self.protobuf_data.clone();
                                 let sender = self.save_file_sender.clone();
@@ -211,24 +238,24 @@ impl eframe::App for EasyProtobufEditApp {
                                     let file = task.await;
                                     let message = if let Some(file_handle) = file {
                                         match file_handle.write(data.as_slice()).await {
-                                            Ok(_) => {
-                                                Some(String::from("Save file successful"))
-                                            },
-                                            Err(e) => {
-                                                Some(format!("write to protobuf file fail: {}", e))
-                                            }
+                                            Ok(_) => Some(String::from(t!("save_success"))),
+                                            Err(e) => Some(format!(
+                                                "{}{}",
+                                                t!("write_protobuf_file_fail"),
+                                                e
+                                            )),
                                         }
                                     } else {
-                                        Some(String::from("Save file does not exist"))
+                                        Some(t!("write_file_not_exist").to_string())
                                     };
                                     sender.send(message).unwrap();
                                 };
                                 execute(Box::pin(future));
                             }
-                            if ui.button("解码").clicked() {
+                            if ui.button(t!("decode")).clicked() {
                                 self.decode();
                             }
-                            if ui.button("编码").clicked() {
+                            if ui.button(t!("encode")).clicked() {
                                 self.encode();
                             }
                         });
@@ -278,19 +305,20 @@ impl eframe::App for EasyProtobufEditApp {
                                 }
                                 Err(e) => {
                                     self.message =
-                                        Some(format!("Create DescriptorPool Fail: {}", e));
+                                        Some(format!("{}{}", t!("create_descriptor_pool_fail"), e));
                                 }
                             }
                         }
                         Err(e) => {
-                            self.message = Some(format!("FileDescriptorSet decode Fail: {}", e));
+                            self.message =
+                                Some(format!("{}{}", t!("decode_descriptor_set_fail"), e));
                         }
                     }
                 }
                 AppState::Editor => {
                     self.protobuf_data = data.clone();
                     self.decode();
-                    self.message = Some("Open Protobuf File Successfully".to_string());
+                    self.message = Some(t!("open_protobuf_data_file_success").to_string());
                 }
             }
         }

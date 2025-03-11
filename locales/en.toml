@@ -1,0 +1,32 @@
+_version = 1
+
+serialize2json_fail = "serialization To Json Failed"
+decode_success = "the Decoding Was Successful"
+decode2dynamic_message_fail = "decoding To dynamic message Failed: "
+
+encode2protobuf_fail = "decoding To Protobuf Failed: "
+protobuf_data_store = "protobuf Data Is Saved"
+deserialize_dynamic_message_fail = "deserialization Of dynamic message Failed"
+
+tips_upload_file_descriptor_set = "select Descriptor Set File Upload"
+upload = "upload"
+upload_file_descriptor_set_dialog_title = "open The Descriptor Set File"
+
+previous = "previous"
+
+full_message_name = "full message name"
+upload_protobuf_data_dialog_title = "open The Protobuf Data File"
+
+save = "save"
+save_protobuf_data_dialog_title = "save The Protobuf Data File"
+
+save_success = "the File Was Saved Successfully"
+write_protobuf_file_fail = "Failed To Write Protobuf Data To File: "
+write_file_not_exist = "The File That Needs To Be Written Does Not Exist"
+
+decode = "decode"
+encode = "encode"
+
+create_descriptor_pool_fail = "Failed To Create A Descriptor Pool: "
+decode_descriptor_set_fail = "Decoding The Descriptor Set Failed: "
+open_protobuf_data_file_success = "The Protobuf Data File Was Opened Successfully"

@@ -1,0 +1,32 @@
+_version = 1
+
+serialize2json_fail = "序列化到Json失败: "
+decode_success = "解码成功"
+decode2dynamic_message_fail = "解码到动态消息失败: "
+
+encode2protobuf_fail = "解码到Protobuf失败: "
+protobuf_data_store = "Protobuf数据已保存"
+deserialize_dynamic_message_fail = "反序列化动态消息失败"
+
+tips_upload_file_descriptor_set = "选择描述符集文件上传"
+upload = "上传"
+upload_file_descriptor_set_dialog_title = "打开描述符集文件"
+
+previous = "上一步"
+
+full_message_name = "完整的消息名称"
+upload_protobuf_data_dialog_title = "打开Protobuf数据文件"
+
+save = "保存"
+save_protobuf_data_dialog_title = "保存Protobuf数据文件"
+
+save_success = "保存文件成功"
+write_protobuf_file_fail = "写入protobuf数据到文件失败: "
+write_file_not_exist = "需要写入的文件不存在"
+
+decode = "解码"
+encode = "编码"
+
+create_descriptor_pool_fail = "创建描述符池失败: "
+decode_descriptor_set_fail = "解码描述符集失败: "
+open_protobuf_data_file_success = "打开Protobuf数据文件成功"

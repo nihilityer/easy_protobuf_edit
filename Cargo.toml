@@ -23,6 +23,8 @@ prost-reflect = { version = "0.14", default-features = false, features = ["serde
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, features = ["std"] }
 
+rust-i18n = {version = "3.1"}
+
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rfd = { version = "0.15", default-features = false, features = ["tokio", "xdg-portal"] }
